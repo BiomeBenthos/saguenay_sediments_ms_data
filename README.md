@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/1191931538.svg)](https://doi.org/10.5281/zenodo.19224962)
+
 # BIOME Saguenay Sediment Analysis (2022-2024)
 
 This project utilizes the **G2Sd** R package (Fournier et al., 2014) for the statistical analysis of unconsolidated sediments. It provides a specialized pipeline to process, validate, and standardize granulometric data collected within the Saguenay Fjord.
