@@ -1,0 +1,21 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: "Bellavance"
+    given-names: "Vincent"
+    affiliation: "Laboratoire BIOME, Université Laval"
+  - family-names: "Gagnon"
+    given-names: "Judith"
+    affiliation: "Laboratoire BIOME, Université Laval"
+  - family-names: "Howman"
+    given-names: "Rebecca"
+    affiliation: "Laboratoire BIOME, Université Laval"
+title: "BIOME Saguenay Sediment Analysis: R scripts for grain-size processing"
+version: 1.0.0
+doi: "10.5281/zenodo.19224963"
+date-released: 2026-03-25
+url: "https://github.com/BiomeBenthos/saguenay_sediments_ms_data"
+keywords:
+  - "Sedimentology"
+  - "Grain size"
+  - "Saguenay Fjord"
