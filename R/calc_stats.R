@@ -1,4 +1,4 @@
-# Calculate statistics using the arithmetic method of moments
+# Calculate statistical indices using the arithmetic Method of Moments
 .moment.arith <- function(x) {
   x <- G2Sd:::.g2sd_tidy(x)
 
@@ -6,15 +6,16 @@
     dplyr::group_by(samples) |>
     dplyr::mutate(relative.value = value * 100 / sum(value)) |>
     dplyr::arrange(meshsize) |>
-    # Calculate the true arithmetic midpoint between sieves
+    # Calculate arithmetic midpoints between sieves for accurate representative particle sizes
     dplyr::mutate(meshsize.midpoint = (dplyr::lag(meshsize) + meshsize) / 2 / 1000)
 
-  # Replace missing values with direct conversion to millimeters
+  # Use the raw mesh size for the finest fraction where no lower boundary exists
   all[is.na(all$meshsize.midpoint), "meshsize.midpoint"] <- all[
     is.na(all$meshsize.midpoint),
     "meshsize"
   ] / 1000
 
+  # Compute mean, sorting (SD), skewness, and kurtosis in metric units
   arith <- all |>
     dplyr::group_by(samples) |>
     dplyr::mutate(mean.arith.um = sum(relative.value * meshsize.midpoint) / 100) |>
@@ -26,14 +27,12 @@
     dplyr::mutate(
       skewness.arith.um = sum(
         relative.value * (meshsize.midpoint - mean.arith.um)^3
-      ) /
-        (100 * sd.arith.um^3)
+      ) / (100 * sd.arith.um^3)
     ) |>
     dplyr::mutate(
       kurtosis.arith.um = sum(
         relative.value * (meshsize.midpoint - mean.arith.um)^4
-      ) /
-        (100 * sd.arith.um^4)
+      ) / (100 * sd.arith.um^4)
     ) |>
     dplyr::mutate(
       mean.arith.um = mean.arith.um * 1000,
@@ -45,7 +44,7 @@
   return(arith)
 }
 
-# Calculate statistics using the geometric method of moments
+# Calculate statistical indices using the geometric Method of Moments
 .moment.geom <- function(x) {
   x <- G2Sd:::.g2sd_tidy(x)
 
@@ -53,46 +52,42 @@
     dplyr::group_by(samples) |>
     dplyr::mutate(relative.value = value * 100 / sum(value))
   
-  # Replace zero to avoid logarithm errors
+  # Prevent log(0) errors by setting a minimum floor for the finest mesh size
   all[all$meshsize == 0, "meshsize"] <- 0.1
   
   all <- all |>
     dplyr::group_by(samples) |>
     dplyr::arrange(meshsize) |>
-    # Calculate the true geometric midpoint
+    # Calculate geometric midpoints for logarithmic-based statistical calculations
     dplyr::mutate(meshsize.midpoint = sqrt(dplyr::lag(meshsize) * meshsize) / 1000)
   
-  # Replace missing values with direct conversion to millimeters
   all[is.na(all$meshsize.midpoint), "meshsize.midpoint"] <- all[
     is.na(all$meshsize.midpoint),
     "meshsize"
   ] / 1000
 
+  # Compute moments using natural logarithms (exp/log) for mathematical consistency
   geom <- all |>
     dplyr::group_by(samples) |>
-    # Use natural logarithm for mathematical accuracy
     dplyr::mutate(
       mean.geom.um = exp(sum(relative.value * log(meshsize.midpoint)) / 100)
     ) |>
     dplyr::mutate(
       sd.geom.um = exp(sqrt(
-        sum(relative.value * (log(meshsize.midpoint) - log(mean.geom.um))^2) /
-          100
+        sum(relative.value * (log(meshsize.midpoint) - log(mean.geom.um))^2) / 100
       )),
       sd.log.phi = log2(sd.geom.um)
     ) |>
     dplyr::mutate(
       skewness.geom.um = sum(
         relative.value * (log(meshsize.midpoint) - log(mean.geom.um))^3
-      ) /
-        (100 * log(sd.geom.um)^3),
+      ) / (100 * log(sd.geom.um)^3),
       skewness.log.phi = -1 * skewness.geom.um
     ) |>
     dplyr::mutate(
       kurtosis.geom.um = sum(
         relative.value * (log(meshsize.midpoint) - log(mean.geom.um))^4
-      ) /
-        (100 * log(sd.geom.um)^4),
+      ) / (100 * log(sd.geom.um)^4),
       kurtosis.log.phi = kurtosis.geom.um
     ) |>
     dplyr::mutate(
@@ -105,12 +100,13 @@
   return(geom)
 }
 
-# Calculate Folk and Ward graphical statistics
+# Calculate graphical statistics according to Folk and Ward (1957)
 .fowa.stat <- function(x, decreasing) {
   x = as.data.frame(x)
   mat.D <- G2Sd:::.percentile(x, decreasing)
   mat.D$percentile <- paste("D", mat.D$percentile, sep = "")
   
+  # Prepare data in wide format for both Phi and Metric scales
   all.phi <- mat.D |>
     dplyr::select(-meshsize) |>
     tidyr::pivot_wider(names_from = percentile, values_from = phi)
@@ -120,8 +116,7 @@
     dplyr::mutate(meshsize = meshsize / 1000) |>
     tidyr::pivot_wider(names_from = percentile, values_from = meshsize)
 
-  # Apply equations on the Phi scale
-  # D16 (smaller particules) has a higher value than D84 on the Phi scale
+  # Compute indices on the Phi scale (Standard Folk & Ward equations)
   all.phi <- all.phi |>
     dplyr::group_by(samples) |>
     dplyr::mutate(
@@ -133,8 +128,7 @@
     ) |>
     dplyr::select(-c(tidyselect::starts_with("D")))
 
-  # Apply equations on the metric scale
-  # D84 (coarser particules) has a higher value than D16 on the metric scale
+  # Compute indices on the metric scale using logarithmic transformations
   all.um <- all.um |>
     dplyr::group_by(samples) |>
     dplyr::mutate(
@@ -148,7 +142,7 @@
 
   all <- dplyr::full_join(all.um, all.phi, by = "samples")
 
-  # Textural and descriptive classification
+  # Apply qualitative classification labels based on index values
   all <- all |>
     dplyr::mutate(
       mean.descript = dplyr::case_when(
@@ -169,9 +163,7 @@
         mean.fw.phi > 8 & mean.fw.phi <= 9 ~ "Very Fine Silt",
         mean.fw.phi > 9 ~ "Clay",
         .default = "NA"
-      )
-    ) |>
-    dplyr::mutate(
+      ),
       sorting = dplyr::case_when(
         sd.fw.phi < 0.35 ~ "Very Well Sorted",
         sd.fw.phi >= 0.35 & sd.fw.phi < 0.5 ~ "Well Sorted",
@@ -181,9 +173,7 @@
         sd.fw.phi >= 2 & sd.fw.phi < 4 ~ "Very Poorly Sorted",
         sd.fw.phi >= 4 ~ "Extremely Poorly Sorted",
         .default = "NA"
-      )
-    ) |>
-    dplyr::mutate(
+      ),
       skewness = dplyr::case_when(
         skewness.fw.phi >= 0.3 ~ "Very Fine Skewed",
         skewness.fw.phi >= 0.1 & skewness.fw.phi < 0.3 ~ "Fine Skewed",
@@ -191,9 +181,7 @@
         skewness.fw.phi > -0.3 & skewness.fw.phi <= -0.1 ~ "Coarse Skewed",
         skewness.fw.phi <= -0.3 ~ "Very Coarse Skewed",
         .default = "NA"
-      )
-    ) |>
-    dplyr::mutate(
+      ),
       kurtosis = dplyr::case_when(
         kurtosis.fw.phi < 0.67 ~ "Very Platykurtic",
         kurtosis.fw.phi >= 0.67 & kurtosis.fw.phi < 0.9 ~ "Platykurtic",
@@ -205,14 +193,11 @@
       )
     )
 
+  # Concatenate descriptions into a single textural string for overall classification
   folk.ward <- all |>
     tidyr::unite(
-      mean.descript,
-      sorting,
-      skewness,
-      kurtosis,
-      col = "sediment",
-      sep = "/"
+      mean.descript, sorting, skewness, kurtosis,
+      col = "sediment", sep = "/"
     )
 
   return(folk.ward)

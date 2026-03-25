@@ -1,16 +1,18 @@
-# Assign detailed grain-size classes
+# Assign sediment grain-size classes following the GRADISTAT scale (Blott & Pye, 2001)
 sed_classes <- function(x) {
   x <- G2Sd:::.g2sd_tidy(x)
 
+  # Define mesh size thresholds (micrometers) for each class
   sedim <- c(63000, 31500, 2^c(4:-3) * 1000, 62.5, 31.25, 15.625, 7.8125, 3.90625, 1.953125)
 
-  # Explicitly define all possible classes for the factor
+  # Define the complete list of possible classes to ensure consistent table structure
   noms_classes <- c(
     "boulder", "vcgravel", "cgravel", "mgravel", "fgravel", "vfgravel",
     "vcsand", "csand", "msand", "fsand", "vfsand",
     "vcsilt", "csilt", "msilt", "fsilt", "vfsilt", "clay"
   )
 
+  # Map each particle size to its corresponding textural class
   all <- x |>
     dplyr::group_by(samples) |>
     dplyr::mutate(relative.value = value * 100 / sum(value)) |>
@@ -36,19 +38,15 @@ sed_classes <- function(x) {
         .default = "NA"
       )
     ) |>
-    # Convert to factor to ensure existence of every category
+    # Convert to factor with predefined levels to preserve empty categories in the final output
     dplyr::mutate(class = factor(class, levels = noms_classes))
 
+  # Aggregate relative values by class and pivot to wide format
   sediment <- all |>
-    # The .drop argument prevents dplyr from removing empty categories
     dplyr::group_by(samples, class, .drop = FALSE) |>
     dplyr::summarise(value = sum(relative.value), .groups = "drop") |>
-    # The values_fill argument sets 0 instead of NA for missing classes
     tidyr::pivot_wider(names_from = class, values_from = value, values_fill = 0) |>
-    dplyr::select(
-      samples,
-      tidyselect::all_of(noms_classes)
-    )
+    dplyr::select(samples, tidyselect::all_of(noms_classes))
     
   return(sediment)
 }
